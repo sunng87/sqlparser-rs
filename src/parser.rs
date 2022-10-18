@@ -2462,7 +2462,11 @@ impl<'a> Parser<'a> {
                 _ => {
                     self.prev_token();
                     let type_name = self.parse_object_name()?;
-                    Ok(DataType::Custom(type_name))
+                    if let Some(arguments) = self.parse_optional_type_arguments()? {
+                        Ok(DataType::CustomWithArgs(type_name, arguments))
+                    } else {
+                        Ok(DataType::Custom(type_name))
+                    }
                 }
             },
             unexpected => self.expected("a data type name", unexpected),
@@ -2650,6 +2654,28 @@ impl<'a> Parser<'a> {
             Ok((Some(n), scale))
         } else {
             Ok((None, None))
+        }
+    }
+
+    pub fn parse_optional_type_arguments(&mut self) -> Result<Option<Vec<String>>, ParserError> {
+        if self.consume_token(&Token::LParen) {
+            let mut args = Vec::new();
+            loop {
+                match self.next_token() {
+                    Token::Word(w) => args.push(w.to_string()),
+                    Token::Number(n, _) => args.push(n),
+                    Token::SingleQuotedString(s) => args.push(s),
+                    unexpected => self.expected("type argument", unexpected)?,
+                }
+
+                if !self.consume_token(&Token::Comma) {
+                    break;
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(args))
+        } else {
+            Ok(None)
         }
     }
 
